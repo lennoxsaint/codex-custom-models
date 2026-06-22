@@ -1,0 +1,7 @@
+{
+  "provider": "ollama",
+  "models": [
+    { "slug": "gpt-5.5",      "display_name": "Qwen2.5 Coder (local)", "target": "qwen2.5-coder", "context_window": 128000 },
+    { "slug": "gpt-5.4-mini", "display_name": "Llama 3.1 (local)",     "target": "llama3.1",      "context_window": 128000 }
+  ]
+}

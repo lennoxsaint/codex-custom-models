@@ -1,0 +1,10 @@
+# Never commit secrets or vendor assets
+.env
+*.icns
+**/AppIcon.icns
+node_modules/
+*.log
+*.bak.*
+# local build artifacts
+build/
+dist/

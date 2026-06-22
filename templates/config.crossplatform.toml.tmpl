@@ -1,0 +1,21 @@
+# Append to ~/.codex/config.toml on Windows/Linux (no proxy, no renamed app).
+
+# ---- OpenRouter (cloud) ----
+[model_providers.openrouter]
+name = "OpenRouter"
+base_url = "https://openrouter.ai/api/v1"
+env_key = "OPENROUTER_API_KEY"   # key from env var, never written in this file
+wire_api = "responses"           # current default/required value ("chat" is deprecated)
+
+[profiles.openrouter]
+model_provider = "openrouter"
+model = "__OR_MODEL__"           # any OpenRouter model id, e.g. z-ai/glm-4.6
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+# Run:  codex --profile openrouter "Say: OK"
+
+# ---- Ollama (local, reserved provider id) ----
+# No provider block needed. Reserved ids: openai, ollama, lmstudio.
+#   1) ollama serve   2) ollama pull qwen2.5-coder
+# Run:  codex --oss --model qwen2.5-coder "Say: OK"

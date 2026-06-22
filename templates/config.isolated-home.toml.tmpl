@@ -1,0 +1,27 @@
+# ~/.codex-custom/config.toml  (isolated CODEX_HOME)
+# Rendered by install.sh from your models.json.
+# DO NOT put your API key here — it lives in the macOS Keychain.
+
+model = "__DEFAULT_SLUG__"
+model_provider = "custom_alias_proxy"
+model_catalog_json = "__MODELS_DIR__/catalog.json"
+
+# --- SAFE DEFAULTS (deliberately conservative; see docs/SAFETY.md) ---
+approval_policy = "on-request"      # Codex PAUSES before running generated commands
+sandbox_mode   = "workspace-write"  # writes confined to the workspace; no full-disk access
+
+[model_providers.custom_alias_proxy]
+name = "Custom Models (local proxy)"
+base_url = "http://127.0.0.1:__PROXY_PORT__/v1"
+request_max_retries = 1
+stream_max_retries = 2
+stream_idle_timeout_ms = 300000
+
+[profiles.custom]
+model = "__DEFAULT_SLUG__"
+model_provider = "custom_alias_proxy"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+# No [projects.*] trust_level = "trusted" block is shipped. Leave projects untrusted.
+# To opt into riskier modes, read docs/SAFETY.md first and change deliberately.

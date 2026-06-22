@@ -1,0 +1,9 @@
+{
+  "provider": "openrouter",
+  "models": [
+    { "slug": "gpt-5.5",       "display_name": "GLM [OpenRouter]",      "target": "z-ai/glm-4.6",           "context_window": 200000 },
+    { "slug": "gpt-5.4",       "display_name": "Kimi K2 [OpenRouter]",  "target": "moonshotai/kimi-k2",     "context_window": 200000 },
+    { "slug": "gpt-5.4-mini",  "display_name": "Qwen3 Coder [OpenRouter]","target": "qwen/qwen3-coder",     "context_window": 256000 },
+    { "slug": "gpt-5.3-codex", "display_name": "DeepSeek [OpenRouter]",  "target": "deepseek/deepseek-chat", "context_window": 128000 }
+  ]
+}

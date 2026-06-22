@@ -1,0 +1,22 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  safety:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node syntax check
+        run: |
+          node --check src/proxy.mjs
+          node --check scripts/render-catalog.mjs
+      - name: Block dangerous Codex defaults (config files only, ignoring comments)
+        run: |
+          set -e
+          scan() { grep -RInE "$1" --include='*.toml' --include='*.tmpl' --include='*.sh' --include='*.zsh' --include='*.mjs' . 2>/dev/null | grep -vE '^[^:]+:[0-9]+:[[:space:]]*#' || true; }
+          hits="$(scan 'approval_policy[[:space:]]*=[[:space:]]*"never"')$(scan 'sandbox_mode[[:space:]]*=[[:space:]]*"danger-full-access"')$(scan 'trust_level[[:space:]]*=[[:space:]]*"trusted"')"
+          if [ -n "$hits" ]; then echo "FAIL: dangerous default in a config file:"; echo "$hits"; exit 1; fi
+          echo "OK: no dangerous defaults in config files"
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"

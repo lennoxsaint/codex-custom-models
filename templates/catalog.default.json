@@ -1,0 +1,5 @@
+{
+  "models": [
+    { "slug": "gpt-5.5", "display_name": "GLM [OpenRouter]", "description": "Custom model via local alias proxy.", "visibility": "list", "supported_in_api": true, "priority": 1, "context_window": 200000, "input_modalities": ["text"] }
+  ]
+}
