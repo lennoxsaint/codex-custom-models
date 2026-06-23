@@ -6,10 +6,12 @@ Run **any model** inside your own copy of the Codex desktop app — OpenRouter m
 
 ## What you get
 
-- A **second, isolated Codex instance** (its own `CODEX_HOME` + window state) that won't disturb your normal Codex.
-- A tiny **local alias proxy** (`127.0.0.1:8787`) that rewrites OpenAI-style slugs → your chosen models and lets the **Desktop picker switch between them**.
-- A renamed, dockable **`.app` wrapper** (macOS) using *your own* local Codex icon.
+- A **genuinely separate app** — `Codex Custom Models.app` — built from *your own* local Codex.app with its **own bundle ID** (ad-hoc re-signed) and its own `CODEX_HOME`. It won't disturb your normal Codex, and its **window controls (red/yellow/green) actually work** (see note below).
+- A tiny **local alias proxy** (`127.0.0.1:8787`, run as a launchd agent) that rewrites OpenAI-style slugs → your chosen models so the Desktop picker switches between them.
 - Your choice of **OpenRouter** (cloud, many models) or **Ollama** (local, private, free compute).
+
+### Why a separate bundle (the window-controls fix)
+The obvious "duplicate" — launching a 2nd instance of the *same* Codex bundle via `open -n --user-data-dir` — leaves the copy's traffic-light buttons **dead**: macOS ties window-control/activation to the bundle ID, so two instances of the same bundle get conflated. A true separate bundle fixes that. One extra wrinkle: on the inset title bar the duplicated bundle's native buttons render with a click hit-area offset, so the installer switches the primary windows to the **standard macOS title bar** (`titleBarStyle:default`) — the buttons then work on-target. Tradeoff: a slim standard title bar strip above Codex's own header. Tested on **Codex 26.616.71553**; the bundle patch is best-effort and skips gracefully if a future Codex changes its internals (see [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)).
 
 ## Honest about what this is
 
@@ -22,13 +24,15 @@ Ships **safe defaults**: `approval_policy = "on-request"` (Codex pauses before r
 
 ## Install
 
-### macOS (full — the in-app picker)
+### macOS (separate-bundle app with working window controls)
 ```bash
-git clone https://github.com/lennox-saint/codex-custom-models
+git clone https://github.com/lennoxsaint/codex-custom-models
 cd codex-custom-models
 ./install.sh            # asks: OpenRouter or Ollama, which models, your key (stored in Keychain)
 ```
-Then open **Codex Custom Models** from /Applications and drag it to your Dock. Switch models in the picker.
+This copies your local Codex.app to **`/Applications/Codex Custom Models.app`** (own bundle ID, ad-hoc re-signed, `CODEX_HOME` injected), installs the proxy as a launchd agent, and patches the primary windows to a standard title bar so the buttons work. Open it from /Applications and drag it to your Dock; switch models in the picker. Re-signing only affects the **copy** — your real Codex is untouched. Remove cleanly with `./uninstall.sh`.
+
+> The copy is ad-hoc re-signed (the only way macOS will run a re-bundled app locally). Dropped provisioned entitlements *could* affect a feature on the copy; if you hit one, the cross-platform CLI path below always works.
 
 ### Windows / Linux (fallback — CLI profile, no renamed app in v1)
 ```powershell

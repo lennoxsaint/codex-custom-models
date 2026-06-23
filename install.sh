@@ -1,107 +1,97 @@
 #!/usr/bin/env bash
-# codex-custom-models — macOS HERO installer.
-# Builds a second, isolated Codex instance with custom models (OpenRouter or local Ollama),
-# a local alias proxy, a catalog the Desktop picker can switch, and a renamed .app wrapper.
-# SAFE defaults. Never ships a key or a vendor icon. Idempotent.
+# codex-custom-models — macOS installer (separate-bundle approach).
 #
-# Flags (all optional; interactive by default):
-#   --provider openrouter|ollama
-#   --models <path>         models.json (default: examples/models.json)
-#   --home <dir>            isolated CODEX_HOME (default: ~/.codex-custom)
-#   --app-name <name>       (default: "Codex Custom Models")
-#   --port <n>              proxy port (default: 8787)
-#   --no-app                skip building the .app (config + proxy only)
-#   --non-interactive       no prompts (for testing / CI)
+# Builds a genuinely separate "Codex Custom Models.app" (its own bundle ID, ad-hoc
+# re-signed) that runs your chosen models (OpenRouter via a local alias proxy, or
+# local Ollama). This is the approach that has WORKING window controls — a 2nd
+# instance of the same Codex bundle (the old `open -n` trick) leaves the traffic-
+# lights dead. SAFE defaults. Never ships a key or a vendor binary (copies YOUR
+# local Codex.app). Tested on Codex 26.616.71553.
+#
+# Flags: --provider openrouter|ollama  --models <file>  --home <dir>
+#        --app-name "<name>"  --port <n>  --non-interactive
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROVIDER=""; MODELS=""; HOME_DIR="$HOME/.codex-custom"; APP_NAME="Codex Custom Models"
-PORT="8787"; NO_APP="0"; INTERACTIVE="1"
+PORT="8787"; INTERACTIVE="1"
 while [[ $# -gt 0 ]]; do case "$1" in
   --provider) PROVIDER="$2"; shift 2;;
   --models) MODELS="$2"; shift 2;;
   --home) HOME_DIR="$2"; shift 2;;
   --app-name) APP_NAME="$2"; shift 2;;
   --port) PORT="$2"; shift 2;;
-  --no-app) NO_APP="1"; shift;;
   --non-interactive) INTERACTIVE="0"; shift;;
   *) echo "unknown flag: $1"; exit 2;;
 esac; done
 
-[[ "$(uname)" == "Darwin" ]] || { echo "This is the macOS installer. On Windows/Linux see docs/INSTALL-WINDOWS-LINUX.md."; exit 1; }
-command -v codex >/dev/null 2>&1 || { echo "Codex CLI not found. Install Codex first: https://developers.openai.com/codex"; exit 1; }
-NODE_BIN="$(command -v node)"; [[ -n "$NODE_BIN" ]] || { echo "Node.js (>=18) required: brew install node"; exit 1; }
+[[ "$(uname)" == "Darwin" ]] || { echo "macOS installer. Windows/Linux: docs/INSTALL-WINDOWS-LINUX.md"; exit 1; }
+command -v codex >/dev/null || { echo "Install Codex first: https://developers.openai.com/codex"; exit 1; }
+[[ -d /Applications/Codex.app ]] || { echo "/Applications/Codex.app not found — install the Codex desktop app first."; exit 1; }
+NODE_BIN="$(command -v node)"; [[ -n "$NODE_BIN" ]] || { echo "Node.js >=18 required (brew install node)."; exit 1; }
 
-ask() { local p="$1" d="$2" a; if [[ "$INTERACTIVE" == "0" ]]; then echo "$d"; else read -r -p "$p [$d]: " a; echo "${a:-$d}"; fi; }
-
-[[ -z "$PROVIDER" ]] && PROVIDER="$(ask 'Provider (openrouter/ollama)' 'openrouter')"
+ask(){ local a; if [[ "$INTERACTIVE" == 0 ]]; then echo "$2"; else read -r -p "$1 [$2]: " a; echo "${a:-$2}"; fi; }
+[[ -z "$PROVIDER" ]] && PROVIDER="$(ask 'Provider (openrouter/ollama)' openrouter)"
 [[ -z "$MODELS" ]] && MODELS="$REPO_DIR/examples/models.${PROVIDER}.json"
 [[ -f "$MODELS" ]] || MODELS="$REPO_DIR/examples/models.json"
-[[ -f "$MODELS" ]] || { echo "models file not found: $MODELS"; exit 1; }
 
-MODELS_DIR="$HOME_DIR/custom-models"
-mkdir -p "$MODELS_DIR" "$HOME_DIR/electron-user-data"
-
-# --- models.json -> install dir, render Codex picker catalog.json, copy proxy ---
+MODELS_DIR="$HOME_DIR/custom-models"; mkdir -p "$MODELS_DIR"
 cp "$MODELS" "$MODELS_DIR/models.json"
 node "$REPO_DIR/scripts/render-catalog.mjs" "$MODELS_DIR/models.json" "$MODELS_DIR/catalog.json"
 cp "$REPO_DIR/src/proxy.mjs" "$MODELS_DIR/proxy.mjs"
-
 DEFAULT_SLUG="$(node -e 'const m=require(process.argv[1]);const l=Array.isArray(m)?m:m.models;process.stdout.write((l[0]&&l[0].slug)||"gpt-5.5")' "$MODELS_DIR/models.json")"
-
 NEEDS_KEY="1"; UPSTREAM="https://openrouter.ai/api/v1"
-if [[ "$PROVIDER" == "ollama" ]]; then NEEDS_KEY="0"; UPSTREAM="http://localhost:11434/v1"; fi
+[[ "$PROVIDER" == ollama ]] && { NEEDS_KEY="0"; UPSTREAM="http://localhost:11434/v1"; }
 
-# --- key handling (OpenRouter only): stdin -> Keychain, never a CLI arg / file / log ---
-if [[ "$PROVIDER" == "openrouter" ]]; then
+# --- OpenRouter key -> Keychain via stdin (never argv / file / log) ---
+if [[ "$PROVIDER" == openrouter ]]; then
   if security find-generic-password -a "$USER" -s codex-custom-models-api-key -w >/dev/null 2>&1; then
     echo "OpenRouter key already in Keychain (reusing)."
-  elif [[ "$INTERACTIVE" == "0" ]]; then
-    echo "WARN: no OpenRouter key in Keychain; set OPENROUTER_API_KEY or add it before launch."
-  else
-    printf "Paste your OpenRouter API key (input hidden): "
-    read -r -s OR_KEY; echo
-    # -w with no value reads the secret from STDIN -> stays out of shell history / argv
-    printf '%s' "$OR_KEY" | security add-generic-password -a "$USER" -s codex-custom-models-api-key -U -w >/dev/null
-    unset OR_KEY
-    echo "Stored in Keychain service 'codex-custom-models-api-key'."
+  elif [[ "$INTERACTIVE" == 1 ]]; then
+    printf "Paste your OpenRouter API key (hidden): "; read -r -s K; echo
+    printf '%s' "$K" | security add-generic-password -a "$USER" -s codex-custom-models-api-key -U -w >/dev/null; unset K
+    echo "Stored in Keychain (codex-custom-models-api-key)."
   fi
 fi
 
-# --- render isolated config (SAFE defaults) ---
-sed -e "s|__DEFAULT_SLUG__|${DEFAULT_SLUG}|g" \
-    -e "s|__MODELS_DIR__|${MODELS_DIR}|g" \
-    -e "s|__PROXY_PORT__|${PORT}|g" \
+# --- isolated config (SAFE defaults) ---
+sed -e "s|__DEFAULT_SLUG__|${DEFAULT_SLUG}|g" -e "s|__MODELS_DIR__|${MODELS_DIR}|g" -e "s|__PROXY_PORT__|${PORT}|g" \
     "$REPO_DIR/templates/config.isolated-home.toml.tmpl" > "$HOME_DIR/config.toml"
 chmod 600 "$HOME_DIR/config.toml"
 
-# --- install the run script ---
-RUN_SCRIPT="$MODELS_DIR/run-codex-custom.zsh"
-cp "$REPO_DIR/scripts/run-codex-custom.zsh" "$RUN_SCRIPT"; chmod +x "$RUN_SCRIPT"
-
-# --- build the .app (unless --no-app) ---
-if [[ "$NO_APP" == "0" ]]; then
-  APP_EXEC="$(echo "$APP_NAME" | tr ' ' '-')"
-  BUNDLE_ID="com.$(echo "$USER" | tr -cd '[:alnum:]').codexcustommodels"
-  APP="/Applications/${APP_NAME}.app"
-  mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-  sed -e "s|__APP_NAME__|${APP_NAME}|g" -e "s|__APP_EXEC__|${APP_EXEC}|g" -e "s|__BUNDLE_ID__|${BUNDLE_ID}|g" \
-      "$REPO_DIR/templates/Info.plist.tmpl" > "$APP/Contents/Info.plist"
-  sed -e "s|__RUN_SCRIPT__|${RUN_SCRIPT}|g" \
-      "$REPO_DIR/templates/app-launcher.zsh.tmpl" > "$APP/Contents/MacOS/${APP_EXEC}"
-  chmod +x "$APP/Contents/MacOS/${APP_EXEC}"
-  CCM_REPO_DIR="$REPO_DIR" bash "$REPO_DIR/scripts/source-icon.sh" "$APP/Contents/Resources/AppIcon.icns" || true
-  /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" || true
-  echo "Built app: $APP"
+# --- proxy as a launchd agent (so the standalone app always has it up) ---
+if [[ "$PROVIDER" == openrouter ]]; then
+  PLIST="$HOME/Library/LaunchAgents/com.codexcustommodels.proxy.plist"
+  mkdir -p "$HOME/Library/LaunchAgents"
+  cat > "$PLIST" <<PL
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.codexcustommodels.proxy</string>
+  <key>ProgramArguments</key><array>
+    <string>${NODE_BIN}</string><string>${MODELS_DIR}/proxy.mjs</string>
+  </array>
+  <key>EnvironmentVariables</key><dict>
+    <key>CCM_PROXY_PORT</key><string>${PORT}</string>
+    <key>CCM_MODELS_JSON</key><string>${MODELS_DIR}/models.json</string>
+    <key>CCM_UPSTREAM</key><string>${UPSTREAM}</string>
+    <key>CCM_NEEDS_KEY</key><string>${NEEDS_KEY}</string>
+    <key>CCM_PROXY_LOG</key><string>${HOME_DIR}/proxy.log</string>
+  </dict>
+  <key>RunAtLoad</key><true/><key>KeepAlive</key><true/>
+  <key>StandardErrorPath</key><string>${HOME_DIR}/proxy.stderr.log</string>
+</dict></plist>
+PL
+  launchctl unload "$PLIST" 2>/dev/null || true
+  launchctl load "$PLIST"
+  for _ in {1..40}; do curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1 && break; sleep 0.1; done
+  curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1 && echo "proxy up on 127.0.0.1:${PORT}" || echo "WARN: proxy not healthy yet (check ${HOME_DIR}/proxy.stderr.log)"
 fi
 
-# --- start proxy + verify ---
-CCM_HOME="$HOME_DIR" CCM_PROXY_PORT="$PORT" CCM_NEEDS_KEY="$NEEDS_KEY" CCM_UPSTREAM="$UPSTREAM" \
-  CCM_CONFIG_ONLY=1 CCM_NODE_BIN="$NODE_BIN" "$RUN_SCRIPT"
-CCM_HOME="$HOME_DIR" CCM_PROXY_PORT="$PORT" bash "$REPO_DIR/scripts/verify.sh" "$DEFAULT_SLUG" || true
+# --- build the SEPARATE-BUNDLE app (the actual window-controls fix) ---
+bash "$REPO_DIR/scripts/duplicate-codex-app.sh" "$APP_NAME" "$HOME_DIR"
 
 echo
-echo "Done. To launch: open the '${APP_NAME}' app and drag it to your Dock."
-echo "CLI: CODEX_HOME=${HOME_DIR} codex --profile custom"
-echo "This runs an AI agent on your machine. Review commands before approving."
-echo "It does NOT give you free AI — you pay your own OpenRouter usage (Ollama is local/free). See README."
+echo "Done. Open '${APP_NAME}' from /Applications and drag it to your Dock."
+echo "It runs an AI agent on your machine — review commands before approving."
+echo "It does NOT give you free AI: OpenRouter bills your own key (Ollama is local/free). See README."

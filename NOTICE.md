@@ -14,3 +14,9 @@ modify OpenAI's software or assets.
   name that does not imply OpenAI ownership and use your own icon.
 - This tool configures clients you are entitled to use, with API keys you own.
   Respect OpenAI's and OpenRouter's Terms of Service.
+
+## On the ad-hoc re-sign (v2)
+The macOS installer copies **your own locally-installed** `Codex.app`, changes the copy's
+bundle identifier/name, and ad-hoc re-signs the copy so macOS will run it locally. No OpenAI
+binary is downloaded or redistributed by this repo — the copy is created on your machine from
+software you already installed. Re-signing only affects the copy; your real Codex is untouched.
