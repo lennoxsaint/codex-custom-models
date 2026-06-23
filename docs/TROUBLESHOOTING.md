@@ -12,6 +12,15 @@ If a future Codex changes its minified internals, the byte-patch prints a WARN a
 The copy is ad-hoc re-signed and de-quarantined by the installer. If macOS still blocks it:
 `xattr -cr "/Applications/Codex Custom Models.app" && codesign --force --deep --sign - "/Applications/Codex Custom Models.app"`
 
+## App bounces in the Dock then never opens
+Almost always a **stale Electron singleton lock** from a previous instance that crashed or was force-quit. On the next launch Electron tries to hand off to the now-dead instance, bounces for ~30s, and quits before a window appears. Fix — fully quit the app, then remove the leftover lock/socket files from its Electron user-data dir and relaunch:
+
+```
+rm -f "$HOME/Library/Application Support/Codex Custom Models/Singleton"*
+```
+
+Replace `Codex Custom Models` with your `--app-name` if you renamed it. Nothing is lost — these are just lock/socket files Electron recreates on launch.
+
 ## Models don't respond / proxy errors (OpenRouter)
 The proxy runs as a launchd agent. Check it:
 `curl -fsS http://127.0.0.1:8787/health` and `~/.codex-custom/proxy.stderr.log`.
