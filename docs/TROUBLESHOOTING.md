@@ -22,3 +22,12 @@ Ad-hoc re-signing drops provisioned entitlements on the COPY (your real Codex is
 
 ## Tested on
 Codex 26.616.71553. Other versions: the separate-bundle + re-sign steps are version-agnostic; only the title-bar byte-patch depends on Codex's bundled code shape (skips gracefully if not found).
+
+## Why the standard title bar (and not a sleek single bar)
+We tested single-bar styles (`titleBarStyle:hidden` and `hiddenInset`) to drop the extra
+strip. In the re-signed duplicate, Codex's own HTML header overlaps the native traffic-lights
+in those modes and **swallows the clicks** (buttons appear on hover but don't fire). Only
+`titleBarStyle:default` — where the buttons live in their own title-bar strip above the web
+content — clicks reliably. So the slim standard title bar is **intentional**: it's the price of
+working window controls. Reclaiming a single bar would require patching Codex's own header CSS
+(fragile + version-specific) and is deliberately not done here.
