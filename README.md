@@ -30,7 +30,7 @@ git clone https://github.com/lennoxsaint/codex-custom-models
 cd codex-custom-models
 ./install.sh            # asks: OpenRouter or Ollama, which models, your key (stored in Keychain)
 ```
-This copies your local Codex.app to **`/Applications/Codex Custom Models.app`** (own bundle ID, ad-hoc re-signed, `CODEX_HOME` injected), installs the proxy as a launchd agent, and patches the primary windows to a standard title bar so the buttons work. Open it from /Applications and drag it to your Dock; switch models in the picker. Re-signing only affects the **copy** — your real Codex is untouched. Remove cleanly with `./uninstall.sh`.
+This copies your local Codex.app to **`/Applications/Codex Custom Models.app`** (own bundle ID, ad-hoc re-signed, `CODEX_HOME` injected), installs the proxy as a launchd agent, patches the primary windows to a standard title bar so the buttons work, and disables the fork's auto-updater (see **Updating** below). Open it from /Applications and drag it to your Dock; switch models in the picker. Re-signing only affects the **copy** — your real Codex is untouched. Remove cleanly with `./uninstall.sh`.
 
 > The copy is ad-hoc re-signed (the only way macOS will run a re-bundled app locally). Dropped provisioned entitlements *could* affect a feature on the copy; if you hit one, the cross-platform CLI path below always works.
 
@@ -40,6 +40,23 @@ pwsh -File install-windows.ps1 -Provider openrouter -Model z-ai/glm-4.6
 # then: codex --profile openrouter
 ```
 Local models: `ollama serve` → `ollama pull qwen2.5-coder` → `codex --oss -m qwen2.5-coder`.
+
+## Updating (and why you won't see an "improperly signed" error)
+The fork's **auto-updater is disabled on purpose.** Codex updates via Sparkle, and an ad-hoc
+re-signed copy can never pass Sparkle's signature check — leaving it on produces
+`Update Error! The update is improperly signed and could not be validated`, and a successful
+update would overwrite the fork (bundle id, CODEX_HOME, window-controls patch) anyway. The
+installer removes the fork's native Sparkle addon so Codex reports the updater unavailable and
+shows no dialog.
+
+Your **real** `/Applications/Codex.app` keeps updating itself normally (untouched, valid
+signature). To bring the fork up to the latest Codex, just re-fork from it:
+```bash
+cd codex-custom-models
+./update.sh            # re-forks from your updated Codex.app; keeps your name + CODEX_HOME
+```
+Your models/config/proxy live in `CODEX_HOME` and are never touched, so there's nothing to
+re-enter. (Already-installed an older fork that still shows the dialog? Run `./update.sh` once.)
 
 ## Pick your models
 Edit `examples/models.json` (or pass `--models <file>`):

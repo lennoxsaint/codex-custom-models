@@ -13,8 +13,12 @@
 # windows to the STANDARD title bar (`titleBarStyle:default`) gives OS-managed
 # buttons whose hit-areas are correct. Tradeoff: a slim standard title bar strip.
 #
+# The fork's own auto-updater (Sparkle) is disabled on purpose — a re-signed copy can
+# never pass Sparkle's signature check, and a real update would overwrite the fork. Your
+# real Codex.app updates normally; re-run ./update.sh to re-fork from it.
+#
 # Nothing here redistributes OpenAI software: it copies YOUR local install and
-# re-signs the copy ad-hoc for local use. Tested on Codex 26.616.71553.
+# re-signs the copy ad-hoc for local use. Tested on Codex 26.616.71553 and 26.616.81150.
 set -euo pipefail
 
 APP_NAME="${1:-Codex Custom Models}"
@@ -64,8 +68,35 @@ else:
     sys.stderr.write(f"patched {n} primary window(s) to standard title bar\n")
 PY
 
-echo "4/5 sourcing your local Codex icon (no vendor asset shipped) — keeping Codex icon"
-# (icon stays the user's own local Codex icon, copied with the bundle)
+echo "4/5 disabling the auto-updater (an ad-hoc re-signed fork can't pass Sparkle's check)"
+# Codex auto-updates via Sparkle. In a re-signed fork that updater is actively harmful:
+#   1. It downloads an OpenAI-signed build and fails to validate it against THIS ad-hoc
+#      signature -> the "update is improperly signed and could not be validated" dialog.
+#   2. Even if it validated, applying it would OVERWRITE this fork (bundle id, CODEX_HOME,
+#      title-bar patch) and undo everything.
+# Codex already has a graceful "updater unavailable" path: if the native Sparkle addon
+# fails to load, initializeMacSparkle() sets lastUnavailableReason and returns, and every
+# subsequent check (background + manual) is ignored with only a log line and NO dialog.
+# So we neutralize the addon. To pick up new Codex releases, run ./update.sh, which
+# re-forks from your real Codex.app — that one updates itself normally with its valid
+# OpenAI signature.
+NATIVE="$DST/Contents/Resources/native/sparkle.node"
+if [ -f "$NATIVE" ]; then
+  rm -f "$NATIVE"
+  echo "  removed sparkle.node -> Codex reports the updater unavailable (no error dialogs)"
+else
+  echo "  WARN: sparkle.node not found (Codex changed its layout?) — relying on Info.plist keys below"
+fi
+# belt-and-braces: stable, documented Sparkle keys that also switch off scheduled checks,
+# in case a future Codex loads the updater differently.
+"$PB" -c "Delete :SUEnableAutomaticChecks" "$PL" 2>/dev/null || true
+"$PB" -c "Add :SUEnableAutomaticChecks bool false" "$PL"
+"$PB" -c "Delete :SUScheduledCheckInterval" "$PL" 2>/dev/null || true
+"$PB" -c "Add :SUScheduledCheckInterval integer 0" "$PL"
+"$PB" -c "Delete :SUAutomaticallyUpdate" "$PL" 2>/dev/null || true
+"$PB" -c "Add :SUAutomaticallyUpdate bool false" "$PL"
+
+# (icon stays the user's own local Codex icon, copied with the bundle — no vendor asset shipped)
 
 echo "5/5 ad-hoc re-sign + de-quarantine + register"
 codesign --force --deep --sign - "$DST" >/dev/null 2>&1
@@ -75,3 +106,4 @@ xattr -cr "$DST" 2>/dev/null || true
 echo
 echo "Done -> $DST  (bundle id: $BUNDLE_ID, CODEX_HOME: $CODEX_HOME)"
 echo "Open it from /Applications and drag to your Dock. Window buttons work; it uses a standard title bar."
+echo "Auto-update is disabled (by design). When Codex updates itself, run ./update.sh to re-fork."

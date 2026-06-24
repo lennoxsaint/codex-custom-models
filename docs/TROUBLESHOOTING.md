@@ -1,5 +1,23 @@
 # Troubleshooting
 
+## "Update Error! The update is improperly signed and could not be validated"
+This is **expected on a fork** if the updater is left on, and the installer disables it for you.
+
+Codex auto-updates via **Sparkle**. The fork is ad-hoc re-signed, so when Sparkle downloads a
+new (OpenAI-signed) Codex build it can't validate it against the copy's signature — Sparkle
+error `4005` (`EdDSA` `3002` underneath) → that dialog. Worse, if it *could* install, the update
+would overwrite the fork (bundle id, CODEX_HOME, title-bar patch) and undo everything.
+
+`scripts/duplicate-codex-app.sh` therefore **disables the fork's updater**: it removes the native
+`sparkle.node` addon (Codex then logs `Updater unavailable after init. reason="failed to load
+native sparkle addon"` and silently ignores all checks — no dialog) and sets
+`SUEnableAutomaticChecks=false` / `SUScheduledCheckInterval=0` / `SUAutomaticallyUpdate=false`.
+
+**To actually update**, run `./update.sh`. Your real `/Applications/Codex.app` updates itself
+normally (untouched, valid signature); `update.sh` re-forks from it, preserving your app name and
+CODEX_HOME (models/config/proxy are stored in CODEX_HOME and never touched). If you have an older
+fork still showing the dialog, just run `./update.sh` once to rebuild it with the updater disabled.
+
 ## Window buttons (red/yellow/green) don't respond on the duplicate
 This was the original reason for the separate-bundle approach. Two causes, both handled by `install.sh` / `scripts/duplicate-codex-app.sh`:
 
