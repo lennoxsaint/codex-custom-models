@@ -9,6 +9,14 @@ jobs:
         run: |
           node --check src/proxy.mjs
           node --check scripts/render-catalog.mjs
+          node --check scripts/openrouter-login.mjs
+          node --check scripts/resolve-models.mjs
+      - name: Unit tests
+        run: |
+          python3 -m unittest discover -s tests -v
+          node --test tests/*.test.mjs
+      - name: Shell syntax
+        run: bash -n install.sh update.sh uninstall.sh scripts/*.sh
       - name: Block dangerous Codex defaults (config files only, ignoring comments)
         run: |
           set -e

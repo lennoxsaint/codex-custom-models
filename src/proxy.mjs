@@ -18,7 +18,7 @@ const CATALOG_PATH = process.env.CCM_MODELS_JSON ?? `${process.env.HOME}/.codex-
 const KEYCHAIN_SERVICE = process.env.CCM_KEYCHAIN_SERVICE ?? "codex-custom-models-api-key";
 const KEYCHAIN_ACCOUNT = process.env.CCM_KEYCHAIN_ACCOUNT ?? process.env.USER ?? "default";
 const TITLE = process.env.CCM_TITLE ?? "codex-custom-models";
-const REFERER = process.env.CCM_HTTP_REFERER ?? "https://github.com/lennox-saint/codex-custom-models";
+const REFERER = process.env.CCM_HTTP_REFERER ?? "https://github.com/lennoxsaint/codex-custom-models";
 const LOG_PATH = process.env.CCM_PROXY_LOG ?? "";
 
 // --- alias map built from models.json (slug -> {target, name, contextLength}) ---

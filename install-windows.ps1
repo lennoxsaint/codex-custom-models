@@ -3,7 +3,7 @@
 # or prints the Ollama (--oss) path. Key lives in the OPENROUTER_API_KEY env var (never in config).
 param(
   [ValidateSet("openrouter","ollama")] [string]$Provider = "openrouter",
-  [string]$Model = "z-ai/glm-4.6"
+  [string]$Model = "z-ai/glm-5.2"
 )
 $ErrorActionPreference = "Stop"
 if (-not (Get-Command codex -ErrorAction SilentlyContinue)) { Write-Error "Codex CLI not found. Install Codex first: https://developers.openai.com/codex"; exit 1 }
@@ -16,8 +16,8 @@ if ($Provider -eq "ollama") {
 }
 
 if (-not $env:OPENROUTER_API_KEY) {
-  Write-Host "Set your key first (current session):  `$env:OPENROUTER_API_KEY = 'sk-or-...'"
-  Write-Host "Persist it:  setx OPENROUTER_API_KEY 'sk-or-...'   (do NOT commit it anywhere)"
+  Write-Error "OPENROUTER_API_KEY is missing. Set it in a trusted PowerShell session with: `$env:OPENROUTER_API_KEY = Read-Host -MaskInput 'OpenRouter key'. Never paste it into an agent chat."
+  exit 1
 }
 $block = @"
 

@@ -1,46 +1,46 @@
 #!/usr/bin/env bash
-# codex-custom-models — update the fork across Codex releases.
-#
-# Why this exists: the fork's own auto-updater is disabled on purpose. An ad-hoc
-# re-signed copy can never pass Sparkle's signature check (you'd get "the update is
-# improperly signed and could not be validated"), and even a successful update would
-# overwrite the fork's bundle id / CODEX_HOME / title-bar patch and undo everything.
-#
-# Your REAL /Applications/Codex.app updates itself normally (untouched, valid OpenAI
-# signature). This script simply re-forks from that now-updated Codex.app, preserving
-# your app name and CODEX_HOME. Your models/config/proxy live in CODEX_HOME and are
-# never touched, so nothing to re-enter.
-#
-# Usage: ./update.sh ["App Name"]      (default app name: "Codex Custom Models")
+# Rebuild a managed custom-model app from the latest official ChatGPT/Codex bundle.
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_NAME="${1:-Codex Custom Models}"
-DST="/Applications/${APP_NAME}.app"
-SRC="${CCM_CODEX_APP:-/Applications/Codex.app}"
+APPLICATIONS_DIR="${CCM_APPLICATIONS_DIR:-/Applications}"
 PB=/usr/libexec/PlistBuddy
 
-[[ "$(uname)" == "Darwin" ]] || { echo "macOS only. Windows/Linux use the CLI profile path (no forked app to update)."; exit 1; }
-[ -d "$SRC" ] || { echo "Real Codex not found at $SRC — open Codex and let it update itself first."; exit 1; }
-[ -d "$DST" ] || { echo "$DST not found — run ./install.sh first."; exit 1; }
-
-# Preserve the existing fork's CODEX_HOME so models/config/proxy keep working.
-HOME_DIR="$("$PB" -c 'Print :LSEnvironment:CODEX_HOME' "$DST/Contents/Info.plist" 2>/dev/null || echo "$HOME/.codex-custom")"
-
-NEW="$("$PB" -c 'Print :CFBundleShortVersionString' "$SRC/Contents/Info.plist" 2>/dev/null || echo '?')"
-OLD="$("$PB" -c 'Print :CFBundleShortVersionString' "$DST/Contents/Info.plist" 2>/dev/null || echo '?')"
-
-echo "Real Codex:   $NEW"
-echo "Your fork:    $OLD"
-echo "CODEX_HOME:   $HOME_DIR"
-if [ "$OLD" = "$NEW" ]; then
-  echo "Already on $NEW. (Re-fork anyway to re-apply the patches? Continuing.)"
+if [[ $# -gt 0 ]]; then
+  APP_NAME="$1"
 else
-  echo "Re-forking $OLD -> $NEW ..."
+  APP_NAME=""
+  for candidate in "ChatGPT OpenRouter Models" "ChatGPT Custom Models" "Codex Custom Models"; do
+    if [[ -d "$APPLICATIONS_DIR/${candidate}.app" ]]; then APP_NAME="$candidate"; break; fi
+  done
+  [[ -n "$APP_NAME" ]] || APP_NAME="ChatGPT OpenRouter Models"
 fi
+DST="$APPLICATIONS_DIR/${APP_NAME}.app"
 
-bash "$REPO_DIR/scripts/duplicate-codex-app.sh" "$APP_NAME" "$HOME_DIR"
+[[ "$(uname)" == "Darwin" ]] || { echo "macOS only; Windows/Linux use the CLI profile path." >&2; exit 1; }
+[[ -d "$DST" ]] || { echo "$DST not found; run ./install.sh first." >&2; exit 1; }
+[[ "$($PB -c 'Print :CCMManagedBy' "$DST/Contents/Info.plist" 2>/dev/null || true)" == "codex-custom-models" ]] || {
+  echo "Refusing to replace an app not managed by this repository: $DST" >&2
+  exit 1
+}
 
-echo
-echo "Updated '${APP_NAME}' to ${NEW}. Updater stays disabled; window controls work; models/config/proxy untouched."
-echo "Open it from /Applications (your Dock pin still points at the same path)."
+SOURCE_OVERRIDE="${CCM_SOURCE_APP:-${CCM_CODEX_APP:-}}"
+if [[ -n "$SOURCE_OVERRIDE" ]]; then
+  SOURCE_APP="$(python3 "$REPO_DIR/scripts/app_bundle.py" inspect "$SOURCE_OVERRIDE" --field path)"
+else
+  SOURCE_APP="$(python3 "$REPO_DIR/scripts/app_bundle.py" detect --applications-dir "$APPLICATIONS_DIR" --field path)"
+fi
+HOME_DIR="$($PB -c 'Print :LSEnvironment:CODEX_HOME' "$DST/Contents/Info.plist")"
+NEW_VERSION="$(python3 "$REPO_DIR/scripts/app_bundle.py" inspect "$SOURCE_APP" --field version)"
+OLD_VERSION="$($PB -c 'Print :CFBundleShortVersionString' "$DST/Contents/Info.plist" 2>/dev/null || echo unknown)"
+
+echo "Official source: $SOURCE_APP ($NEW_VERSION)"
+echo "Managed copy:   $DST ($OLD_VERSION)"
+echo "CODEX_HOME:     $HOME_DIR"
+CCM_SOURCE_APP="$SOURCE_APP" bash "$REPO_DIR/scripts/duplicate-codex-app.sh" "$APP_NAME" "$HOME_DIR"
+
+PORT="$(sed -nE 's|^[[:space:]]*base_url[[:space:]]*=[[:space:]]*"http://127\.0\.0\.1:([0-9]+)/v1".*|\1|p' "$HOME_DIR/config.toml" | head -1)"
+PORT="${PORT:-8787}"
+bash "$REPO_DIR/scripts/verify.sh" --app-name "$APP_NAME" --home "$HOME_DIR" --port "$PORT" --skip-marker
+
+echo "Updated $APP_NAME from $OLD_VERSION to $NEW_VERSION. Models, credentials, and isolated history were preserved."

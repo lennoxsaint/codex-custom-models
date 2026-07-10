@@ -14,7 +14,7 @@ You are wiring an AI agent that can run shell commands on your machine to a **re
 
 ## Key handling
 - The OpenRouter key is **never** written to a config file, log, shell history, or commit.
-- macOS: stored in the Keychain (`codex-custom-models-api-key`), read at request time by the proxy. The installer reads it via a hidden `read -s` and pipes it to `security` over **stdin** (not as a CLI arg).
+- macOS: OpenRouter's official OAuth PKCE flow returns a user-controlled credential after browser approval. The installer writes it over **stdin** to Keychain service `codex-custom-models-api-key`; it is never printed or placed in command arguments. The proxy reads it from Keychain at request time.
 - Windows/Linux: an `OPENROUTER_API_KEY` env var (`env_key`), never inline in config.
 - The proxy logs **only metadata** (route, alias, target, status, latency) — never prompts, completions, headers, or keys.
 - `.gitignore` excludes `.env` and `*.icns`. CI runs gitleaks.
@@ -24,3 +24,9 @@ Your key is in the Keychain/env. Don't reveal it on camera.
 
 ## Cost
 Set a spend limit on your OpenRouter account before you start — a runaway agent loop costs money. Ollama (`--oss`) has no per-token cost.
+
+## Source authenticity
+- The installer accepts only bundle identifier `com.openai.codex` from the user's local `/Applications/ChatGPT.app` or legacy `/Applications/Codex.app`.
+- The source must pass strict code-signature verification and be signed by OpenAI team `2DC432GLL2`.
+- The source is verified again after duplication. Only the staged copy is changed and ad-hoc signed.
+- A source-verification bypass exists only for repository fixture testing and must never be used for member installation.

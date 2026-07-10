@@ -1,109 +1,162 @@
 #!/usr/bin/env bash
-# Build a TRUE separate-bundle duplicate of Codex with WORKING window controls.
-#
-# Why this exists: launching a 2nd instance of the same Codex bundle (open -n
-# --user-data-dir) leaves the duplicate's red/yellow/green traffic-lights dead —
-# macOS ties window-control/activation to the bundle ID, so two instances of the
-# SAME bundle get conflated. The fix is a genuinely separate app bundle (its own
-# CFBundleIdentifier), copied from your own local Codex.app and ad-hoc re-signed.
-#
-# One extra wrinkle on the inset title bar: in a duplicated bundle the native
-# traffic-lights of `titleBarStyle:hiddenInset` render with a click hit-area
-# offset (you have to click slightly above the dots). Switching the primary
-# windows to the STANDARD title bar (`titleBarStyle:default`) gives OS-managed
-# buttons whose hit-areas are correct. Tradeoff: a slim standard title bar strip.
-#
-# The fork's own auto-updater (Sparkle) is disabled on purpose — a re-signed copy can
-# never pass Sparkle's signature check, and a real update would overwrite the fork. Your
-# real Codex.app updates normally; re-run ./update.sh to re-fork from it.
-#
-# Nothing here redistributes OpenAI software: it copies YOUR local install and
-# re-signs the copy ad-hoc for local use. Tested on Codex 26.616.71553 and 26.616.81150.
+# Build a separately identified, ad-hoc signed copy of the user's installed
+# OpenAI desktop app. Supports the July 2026 unified ChatGPT.app and legacy
+# Codex.app. The official source bundle is verified and never modified.
 set -euo pipefail
 
-APP_NAME="${1:-Codex Custom Models}"
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+APP_NAME="${1:-ChatGPT OpenRouter Models}"
 CODEX_HOME="${2:-$HOME/.codex-custom}"
-SRC="${CCM_CODEX_APP:-/Applications/Codex.app}"
-DST="/Applications/${APP_NAME}.app"
-BUNDLE_ID="com.$(id -un | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]').codexcustommodels"
+ELECTRON_USER_DATA_PATH="$CODEX_HOME/electron-user-data"
+APPLICATIONS_DIR="${CCM_APPLICATIONS_DIR:-/Applications}"
+SOURCE_OVERRIDE="${CCM_SOURCE_APP:-${CCM_CODEX_APP:-}}"
+EXPECTED_TEAM_ID="2DC432GLL2"
+PB=/usr/libexec/PlistBuddy
 
-[ -d "$SRC" ] || { echo "Codex.app not found at $SRC — install Codex first."; exit 1; }
-command -v codesign >/dev/null || { echo "codesign (Xcode CLT) required."; exit 1; }
+[[ "$(uname)" == "Darwin" ]] || { echo "macOS app duplication requires macOS." >&2; exit 1; }
+[[ "$APP_NAME" =~ ^[[:alnum:]][[:alnum:]\ ._-]*$ ]] || {
+  echo "Invalid app name: $APP_NAME" >&2
+  exit 2
+}
+[[ "$CODEX_HOME" == /* && "$CODEX_HOME" != *$'\n'* ]] || {
+  echo "CODEX_HOME must be an absolute single-line path." >&2
+  exit 2
+}
+command -v codesign >/dev/null || { echo "codesign (Xcode Command Line Tools) is required." >&2; exit 1; }
+command -v clang >/dev/null || { echo "clang (Xcode Command Line Tools) is required." >&2; exit 1; }
 
-echo "1/5 copying $SRC -> $DST"
-# quit any running copy, then copy
-pkill -f "${APP_NAME}.app/Contents/MacOS/Codex" 2>/dev/null || true
-sleep 1
-rm -rf "$DST"
-ditto "$SRC" "$DST"
+if [[ -n "$SOURCE_OVERRIDE" ]]; then
+  SRC="$(python3 "$REPO_DIR/scripts/app_bundle.py" inspect "$SOURCE_OVERRIDE" --field path)"
+else
+  SRC="$(python3 "$REPO_DIR/scripts/app_bundle.py" detect --applications-dir "$APPLICATIONS_DIR" --field path)"
+fi
+SRC_EXECUTABLE="$(python3 "$REPO_DIR/scripts/app_bundle.py" inspect "$SRC" --field executable)"
+SRC_DISPLAY_NAME="$(python3 "$REPO_DIR/scripts/app_bundle.py" inspect "$SRC" --field display_name)"
+SRC_VERSION="$(python3 "$REPO_DIR/scripts/app_bundle.py" inspect "$SRC" --field version)"
 
-echo "2/5 rebranding bundle + injecting CODEX_HOME=$CODEX_HOME"
-PB=/usr/libexec/PlistBuddy; PL="$DST/Contents/Info.plist"
+if [[ "${CCM_SKIP_SOURCE_SIGNATURE_CHECK:-0}" != "1" ]]; then
+  codesign --verify --deep --strict "$SRC" >/dev/null 2>&1 || {
+    echo "Refusing to copy an invalid or modified source app: $SRC" >&2
+    exit 1
+  }
+  TEAM_ID="$(codesign -dv --verbose=4 "$SRC" 2>&1 | awk -F= '/^TeamIdentifier=/{print $2; exit}')"
+  [[ "$TEAM_ID" == "$EXPECTED_TEAM_ID" ]] || {
+    echo "Refusing source signed by unexpected team ${TEAM_ID:-unknown}; expected OpenAI team $EXPECTED_TEAM_ID." >&2
+    exit 1
+  }
+fi
+
+SAFE_USER="$(id -un | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')"
+SAFE_APP="$(printf '%s' "$APP_NAME" | tr -cd '[:alnum:]' | tr '[:upper:]' '[:lower:]')"
+[[ -n "$SAFE_APP" ]] || { echo "App name must contain letters or numbers." >&2; exit 2; }
+BUNDLE_ID="com.${SAFE_USER}.custommodels.${SAFE_APP}"
+DST="${APPLICATIONS_DIR}/${APP_NAME}.app"
+STAGE="${APPLICATIONS_DIR}/.${SAFE_APP}.staging.$$.app"
+BACKUP="${APPLICATIONS_DIR}/.${SAFE_APP}.backup.$$.app"
+
+cleanup() {
+  if [[ -d "$STAGE" ]]; then rm -rf "$STAGE"; fi
+  return 0
+}
+trap cleanup EXIT
+
+if [[ -d "$DST" ]]; then
+  MANAGED_BY="$($PB -c 'Print :CCMManagedBy' "$DST/Contents/Info.plist" 2>/dev/null || true)"
+  if [[ "$MANAGED_BY" != "codex-custom-models" && "${CCM_REPLACE_UNMANAGED_APP:-0}" != "1" ]]; then
+    echo "Refusing to overwrite an app not managed by codex-custom-models: $DST" >&2
+    echo "Choose another --app-name or set CCM_REPLACE_UNMANAGED_APP=1 after reviewing that path." >&2
+    exit 1
+  fi
+fi
+
+echo "1/6 verifying and copying ${SRC_DISPLAY_NAME} ${SRC_VERSION} from $SRC"
+ditto "$SRC" "$STAGE"
+
+echo "2/6 assigning bundle identity and isolated CODEX_HOME=$CODEX_HOME"
+mkdir -p "$ELECTRON_USER_DATA_PATH"
+PL="$STAGE/Contents/Info.plist"
 "$PB" -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PL"
 "$PB" -c "Set :CFBundleName $APP_NAME" "$PL" 2>/dev/null || "$PB" -c "Add :CFBundleName string $APP_NAME" "$PL"
 "$PB" -c "Set :CFBundleDisplayName $APP_NAME" "$PL" 2>/dev/null || "$PB" -c "Add :CFBundleDisplayName string $APP_NAME" "$PL"
-"$PB" -c "Delete :LSEnvironment" "$PL" 2>/dev/null || true
-"$PB" -c "Add :LSEnvironment dict" "$PL"
-"$PB" -c "Add :LSEnvironment:CODEX_HOME string $CODEX_HOME" "$PL"
-rm -f "$DST/Contents/embedded.provisionprofile"   # invalid for an ad-hoc re-sign
+"$PB" -c "Add :LSEnvironment dict" "$PL" 2>/dev/null || true
+"$PB" -c "Set :LSEnvironment:CODEX_HOME $CODEX_HOME" "$PL" 2>/dev/null || "$PB" -c "Add :LSEnvironment:CODEX_HOME string $CODEX_HOME" "$PL"
+"$PB" -c "Set :LSEnvironment:CODEX_ELECTRON_USER_DATA_PATH $ELECTRON_USER_DATA_PATH" "$PL" 2>/dev/null || "$PB" -c "Add :LSEnvironment:CODEX_ELECTRON_USER_DATA_PATH string $ELECTRON_USER_DATA_PATH" "$PL"
+"$PB" -c "Set :CCMCodexHome $CODEX_HOME" "$PL" 2>/dev/null || "$PB" -c "Add :CCMCodexHome string $CODEX_HOME" "$PL"
+"$PB" -c "Set :CCMElectronUserDataPath $ELECTRON_USER_DATA_PATH" "$PL" 2>/dev/null || "$PB" -c "Add :CCMElectronUserDataPath string $ELECTRON_USER_DATA_PATH" "$PL"
+"$PB" -c "Set :CCMManagedBy codex-custom-models" "$PL" 2>/dev/null || "$PB" -c "Add :CCMManagedBy string codex-custom-models" "$PL"
+"$PB" -c "Set :CCMSourceApp $SRC" "$PL" 2>/dev/null || "$PB" -c "Add :CCMSourceApp string $SRC" "$PL"
+"$PB" -c "Set :CCMSourceVersion $SRC_VERSION" "$PL" 2>/dev/null || "$PB" -c "Add :CCMSourceVersion string $SRC_VERSION" "$PL"
+REAL_EXECUTABLE="${SRC_EXECUTABLE}.real"
+mv "$STAGE/Contents/MacOS/$SRC_EXECUTABLE" "$STAGE/Contents/MacOS/$REAL_EXECUTABLE"
+"$PB" -c "Set :CCMRealExecutable $REAL_EXECUTABLE" "$PL" 2>/dev/null || "$PB" -c "Add :CCMRealExecutable string $REAL_EXECUTABLE" "$PL"
+clang -Os -Wall -Wextra -framework CoreFoundation "$REPO_DIR/scripts/launcher.c" -o "$STAGE/Contents/MacOS/$SRC_EXECUTABLE"
+rm -f "$STAGE/Contents/embedded.provisionprofile"
 
-echo "3/5 patching window controls (primary windows -> standard title bar)"
-# Byte-preserving edit: `hiddenInset` -> `default` ONLY for primary windows
-# (identified by the trailing ,trafficLightPosition). The asar header is
-# unchanged, so ElectronAsarIntegrity (a header hash) still validates.
-python3 - "$DST/Contents/Resources/app.asar" <<'PY'
+echo "3/6 patching primary windows to the standard macOS title bar"
+python3 - "$STAGE/Contents/Resources/app.asar" <<'PY'
+from pathlib import Path
 import sys
-p = sys.argv[1]
-b = open(p, "rb").read()
+
+path = Path(sys.argv[1])
+data = path.read_bytes()
 old = b"`hiddenInset`,trafficLightPosition"
-new = b"`default`    ,trafficLightPosition"   # default(7)+`` + 4 spaces == hiddenInset(11)+`` ; byte-preserving
-assert len(old) == len(new), "patch not byte-preserving"
-n = b.count(old)
-if n == 0:
-    sys.stderr.write("WARN: primary-window titlebar pattern not found (Codex changed its minified code?). "
-                     "Skipping titlebar fix — buttons may have the hit-area offset. See TROUBLESHOOTING.md\n")
+new = b"`default`    ,trafficLightPosition"
+assert len(old) == len(new), "title-bar patch must preserve byte length"
+count = data.count(old)
+if count == 0:
+    print("WARN: title-bar pattern not found; leaving the app UI unchanged.", file=sys.stderr)
 else:
-    b = b.replace(old, new)
-    open(p, "wb").write(b)
-    sys.stderr.write(f"patched {n} primary window(s) to standard title bar\n")
+    path.write_bytes(data.replace(old, new))
+    print(f"patched {count} primary window(s)", file=sys.stderr)
 PY
 
-echo "4/5 disabling the auto-updater (an ad-hoc re-signed fork can't pass Sparkle's check)"
-# Codex auto-updates via Sparkle. In a re-signed fork that updater is actively harmful:
-#   1. It downloads an OpenAI-signed build and fails to validate it against THIS ad-hoc
-#      signature -> the "update is improperly signed and could not be validated" dialog.
-#   2. Even if it validated, applying it would OVERWRITE this fork (bundle id, CODEX_HOME,
-#      title-bar patch) and undo everything.
-# Codex already has a graceful "updater unavailable" path: if the native Sparkle addon
-# fails to load, initializeMacSparkle() sets lastUnavailableReason and returns, and every
-# subsequent check (background + manual) is ignored with only a log line and NO dialog.
-# So we neutralize the addon. To pick up new Codex releases, run ./update.sh, which
-# re-forks from your real Codex.app — that one updates itself normally with its valid
-# OpenAI signature.
-NATIVE="$DST/Contents/Resources/native/sparkle.node"
-if [ -f "$NATIVE" ]; then
+echo "4/6 disabling Sparkle inside the managed copy"
+NATIVE="$STAGE/Contents/Resources/native/sparkle.node"
+if [[ -f "$NATIVE" ]]; then
   rm -f "$NATIVE"
-  echo "  removed sparkle.node -> Codex reports the updater unavailable (no error dialogs)"
 else
-  echo "  WARN: sparkle.node not found (Codex changed its layout?) — relying on Info.plist keys below"
+  echo "WARN: sparkle.node not found; relying on Sparkle Info.plist switches." >&2
 fi
-# belt-and-braces: stable, documented Sparkle keys that also switch off scheduled checks,
-# in case a future Codex loads the updater differently.
-"$PB" -c "Delete :SUEnableAutomaticChecks" "$PL" 2>/dev/null || true
-"$PB" -c "Add :SUEnableAutomaticChecks bool false" "$PL"
-"$PB" -c "Delete :SUScheduledCheckInterval" "$PL" 2>/dev/null || true
-"$PB" -c "Add :SUScheduledCheckInterval integer 0" "$PL"
-"$PB" -c "Delete :SUAutomaticallyUpdate" "$PL" 2>/dev/null || true
-"$PB" -c "Add :SUAutomaticallyUpdate bool false" "$PL"
+"$PB" -c "Set :SUEnableAutomaticChecks false" "$PL" 2>/dev/null || "$PB" -c "Add :SUEnableAutomaticChecks bool false" "$PL"
+"$PB" -c "Set :SUScheduledCheckInterval 0" "$PL" 2>/dev/null || "$PB" -c "Add :SUScheduledCheckInterval integer 0" "$PL"
+"$PB" -c "Set :SUAutomaticallyUpdate false" "$PL" 2>/dev/null || "$PB" -c "Add :SUAutomaticallyUpdate bool false" "$PL"
 
-# (icon stays the user's own local Codex icon, copied with the bundle — no vendor asset shipped)
+echo "5/6 ad-hoc signing and verifying the staged copy"
+codesign --force --deep --sign - "$STAGE" >/dev/null 2>&1
+xattr -cr "$STAGE" 2>/dev/null || true
+codesign --verify --deep --strict "$STAGE" >/dev/null 2>&1 || {
+  echo "The staged duplicate failed code-signature verification." >&2
+  exit 1
+}
 
-echo "5/5 ad-hoc re-sign + de-quarantine + register"
-codesign --force --deep --sign - "$DST" >/dev/null 2>&1
-xattr -cr "$DST" 2>/dev/null || true
+echo "6/6 installing $DST and confirming the source stayed valid"
+pkill -f "${DST}/Contents/MacOS/" 2>/dev/null || true
+sleep 1
+if [[ -d "$DST" ]]; then mv "$DST" "$BACKUP"; fi
+if ! mv "$STAGE" "$DST"; then
+  [[ -d "$BACKUP" ]] && mv "$BACKUP" "$DST"
+  exit 1
+fi
+if ! codesign --verify --deep --strict "$DST" >/dev/null 2>&1; then
+  rm -rf "$DST"
+  [[ -d "$BACKUP" ]] && mv "$BACKUP" "$DST"
+  echo "Installed duplicate failed verification; previous managed copy was restored." >&2
+  exit 1
+fi
+[[ -d "$BACKUP" ]] && rm -rf "$BACKUP"
+if [[ "${CCM_SKIP_SOURCE_SIGNATURE_CHECK:-0}" != "1" ]]; then
+  codesign --verify --deep --strict "$SRC" >/dev/null 2>&1 || {
+    echo "Source verification changed unexpectedly; stop and inspect $SRC." >&2
+    exit 1
+  }
+fi
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$DST" 2>/dev/null || true
 
 echo
-echo "Done -> $DST  (bundle id: $BUNDLE_ID, CODEX_HOME: $CODEX_HOME)"
-echo "Open it from /Applications and drag to your Dock. Window buttons work; it uses a standard title bar."
-echo "Auto-update is disabled (by design). When Codex updates itself, run ./update.sh to re-fork."
+echo "Installed: $DST"
+echo "Source:    $SRC (${SRC_DISPLAY_NAME} ${SRC_VERSION}, executable ${SRC_EXECUTABLE})"
+echo "Bundle ID: $BUNDLE_ID"
+echo "CODEX_HOME: $CODEX_HOME"
+echo "Electron data: $ELECTRON_USER_DATA_PATH"
+echo "Native launcher: $SRC_EXECUTABLE -> $REAL_EXECUTABLE --user-data-dir"
+echo "The official source app was verified before and after duplication and was not modified."

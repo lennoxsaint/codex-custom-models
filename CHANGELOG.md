@@ -1,5 +1,16 @@
 # Changelog
 
+## v3 — unified ChatGPT desktop app + one-link agent setup
+- Supports OpenAI's July 9, 2026 unified `/Applications/ChatGPT.app` while retaining legacy `Codex.app` fallback. Source name, version, and executable are detected from `Info.plist` instead of hard-coded.
+- Verifies the official source bundle ID, OpenAI signing team, and signature before copying; verifies the untouched source again after an atomic managed install.
+- Defaults to `ChatGPT OpenRouter Models.app`, with an isolated `CODEX_HOME`, unique user-owned bundle ID, strict structural verification, and an install receipt.
+- Isolates the unified app's Electron singleton/profile through `CODEX_ELECTRON_USER_DATA_PATH`, preventing launches from being handed back to the official ChatGPT process.
+- Passes the same isolated profile as Chromium's early `--user-data-dir` argument through a tiny bundle-local native launcher, before Electron's single-instance lock runs.
+- Adds official OpenRouter OAuth PKCE browser authorization. Credentials go directly to macOS Keychain and are never pasted into an agent conversation.
+- Adds repeatable `--model 'provider/id|Display Name'` flags backed by OpenRouter's live catalog and real context windows.
+- Adds `AGENTS.md`, machine-readable preflight, strict marker verification, agent-first docs, Python/Node regression tests, and CI coverage for modern/legacy bundle detection.
+- Clarifies that custom models power the Codex workspace inside the unified app, not Chat or Work.
+
 ## v2.1 — survive Codex updates (no "improperly signed" error)
 - **Fixes the `Update Error! The update is improperly signed and could not be validated`
   dialog.** Codex auto-updates via Sparkle; in an ad-hoc re-signed fork the update can never

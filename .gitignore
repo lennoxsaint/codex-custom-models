@@ -8,3 +8,5 @@ node_modules/
 # local build artifacts
 build/
 dist/
+__pycache__/
+*.pyc
