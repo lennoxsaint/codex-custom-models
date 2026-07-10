@@ -4,7 +4,7 @@ jobs:
   safety:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Node syntax check
         run: |
           node --check src/proxy.mjs
@@ -25,6 +25,6 @@ jobs:
           if [ -n "$hits" ]; then echo "FAIL: dangerous default in a config file:"; echo "$hits"; exit 1; fi
           echo "OK: no dangerous defaults in config files"
       - name: Secret scan (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
