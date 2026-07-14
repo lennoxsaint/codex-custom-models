@@ -6,7 +6,7 @@ model = "__DEFAULT_SLUG__"
 model_provider = "custom_alias_proxy"
 model_catalog_json = "__MODELS_DIR__/catalog.json"
 
-# --- SAFE DEFAULTS (deliberately conservative; see docs/SAFETY.md) ---
+# --- SAFE DEFAULTS (deliberately conservative; see repository SECURITY.md) ---
 approval_policy = "on-request"      # Codex PAUSES before running generated commands
 sandbox_mode   = "workspace-write"  # writes confined to the workspace; no full-disk access
 
@@ -24,4 +24,4 @@ approval_policy = "on-request"
 sandbox_mode = "workspace-write"
 
 # No [projects.*] trust_level = "trusted" block is shipped. Leave projects untrusted.
-# To opt into riskier modes, read docs/SAFETY.md first and change deliberately.
+# To opt into riskier modes, read the repository's SECURITY.md first and change deliberately.

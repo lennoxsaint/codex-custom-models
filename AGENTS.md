@@ -6,14 +6,14 @@ This repository builds a local, separately identified copy of the user's install
 
 1. Clone or update this repository. Read `README.md` and `SECURITY.md`.
 2. Run `./scripts/preflight.sh` and show the user the detected source name/version and any exact blocker.
-3. Ask which provider and which 1-6 model IDs they want. Recommend OpenRouter for breadth and Ollama for local privacy. Never ask the user to paste an API key into chat.
+3. If the user only says “install this,” use OpenRouter with `examples/models.openrouter.json`, the release-verified Codex Club pack. Ask for 1-6 model IDs only when they request a different set. Recommend Ollama when local privacy is their priority. Never ask the user to paste an API key into chat.
 4. For OpenRouter, run:
 
    ```bash
-   ./install.sh --provider openrouter --model 'provider/model|Display Name' --verify --launch
+   ./install.sh --provider openrouter --models examples/models.openrouter.json --verify --launch
    ```
 
-   Repeat `--model` for each requested model. The installer opens OpenRouter's official PKCE authorization page when Keychain has no credential.
+   Use repeatable `--model 'provider/model|Display Name'` flags only for a user-selected override. The installer opens OpenRouter's official PKCE authorization page when Keychain has no credential.
 5. Verify the app bundle, isolated `CODEX_HOME`, proxy health, model mappings, marker response, and a new metadata receipt in the proxy log.
 6. On macOS, open the installed app and confirm a process is running from its own bundle. Add it to the Dock only if the user asked or the setup request clearly includes that outcome.
    - First launch may ask whether the ad-hoc copy can read the official `Codex Storage Key`. Recommend **Deny** to keep the custom profile isolated; the OpenRouter credential lives in a separate Keychain item.
@@ -38,6 +38,7 @@ Run before committing:
 python3 -m unittest discover -s tests -v
 node --test tests/*.test.mjs
 node --check src/proxy.mjs scripts/*.mjs
+node scripts/validate-member-package.mjs examples/models.openrouter.json --live
 bash -n install.sh update.sh uninstall.sh scripts/*.sh
 git diff --check
 ```

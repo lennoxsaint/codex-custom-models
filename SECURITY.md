@@ -14,7 +14,7 @@ You are wiring an AI agent that can run shell commands on your machine to a **re
 
 ## Key handling
 - The OpenRouter key is **never** written to a config file, log, shell history, or commit.
-- macOS: OpenRouter's official OAuth PKCE flow returns a user-controlled credential after browser approval. The installer writes it over **stdin** to Keychain service `codex-custom-models-api-key`; it is never printed or placed in command arguments. The proxy reads it from Keychain at request time.
+- macOS: OpenRouter's official OAuth PKCE flow returns a user-controlled credential after browser approval. A high-entropy callback-path nonce binds the localhost redirect to the initiating session without relying on undocumented query parameters. The installer writes the credential over **stdin** to Keychain service `codex-custom-models-api-key`; it is never printed or placed in command arguments. The proxy reads it from Keychain at request time.
 - Windows/Linux: an `OPENROUTER_API_KEY` env var (`env_key`), never inline in config.
 - The proxy logs **only metadata** (route, alias, target, status, latency) — never prompts, completions, headers, or keys.
 - `.gitignore` excludes `.env` and `*.icns`. CI runs gitleaks.

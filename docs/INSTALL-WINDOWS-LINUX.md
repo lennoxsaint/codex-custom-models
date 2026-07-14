@@ -12,6 +12,8 @@ codex --profile openrouter exec "Reply with exactly: OK-CUSTOM-MODELS"
 
 Use your normal secure environment/credential manager for persistence; never commit the key or paste it into an agent conversation.
 
+The installer owns one marked block in `~/.codex/config.toml` and replaces that block on reruns. It refuses to overwrite an existing unmarked `openrouter` provider/profile, so a hand-written configuration is never silently changed.
+
 ## Linux
 
 Add an OpenRouter provider and profile to `~/.codex/config.toml` using `templates/config.crossplatform.toml.tmpl`, set `OPENROUTER_API_KEY` in your secure shell environment, then run:

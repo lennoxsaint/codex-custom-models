@@ -8,12 +8,12 @@ Create a separate copy of OpenAI's **unified ChatGPT desktop app** whose **Codex
 
 Send this one sentence to Codex or another capable coding agent:
 
-> Set this up on my Mac, ask which OpenRouter models I want, and verify it end to end: https://github.com/lennoxsaint/codex-custom-models
+> Install this on my Mac with the verified Codex Club model pack and prove it works end to end: https://github.com/lennoxsaint/codex-custom-models
 
 The repository's [AGENTS.md](AGENTS.md) gives the agent the complete safe setup contract. The agent will:
 
 1. Clone the repository and run machine-readable preflight.
-2. Ask which OpenRouter models you want.
+2. Install the verified five-model Codex Club pack, unless you name a different set.
 3. Open OpenRouter in your browser for authorization. **Never paste an API key into chat.**
 4. Build `ChatGPT OpenRouter Models.app` from your own verified local ChatGPT app.
 5. Run structural checks and a real marker turn, launch the copy, and report exact proof.
@@ -30,13 +30,12 @@ cd codex-custom-models
 ./scripts/preflight.sh
 ./install.sh \
   --provider openrouter \
-  --model 'z-ai/glm-5.2|GLM 5.2' \
-  --model 'moonshotai/kimi-k2.7-code|Kimi K2.7 Code' \
+  --models examples/models.openrouter.json \
   --verify \
   --launch
 ```
 
-`--model` accepts a live OpenRouter model ID and an optional plain-English display name separated by `|`. The installer validates each ID against OpenRouter's public catalog and uses its real context window. Repeat the flag up to six times.
+The member pack is live-validated before release and currently includes Claude Fable 5, GLM 5.2, Kimi K2.7 Code, Qwen3.7 Max, and DeepSeek V4 Pro. To choose a different set, use repeatable `--model 'provider/model-id|Display Name'` flags; the installer validates those IDs against OpenRouter's public catalog and uses their real context windows.
 
 For local models:
 
@@ -71,6 +70,12 @@ This relies on an unofficial Codex catalog/alias-proxy workaround and may need m
 - The installer refuses to overwrite an unrelated app with the same name.
 
 Read [SECURITY.md](SECURITY.md) before increasing Codex permissions.
+
+Maintainers can verify the shipped model pack against OpenRouter's current public catalog with:
+
+```bash
+node scripts/validate-member-package.mjs examples/models.openrouter.json --live
+```
 
 ## Updating
 

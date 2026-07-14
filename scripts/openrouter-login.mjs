@@ -13,6 +13,26 @@ export function createPkcePair() {
 }
 
 
+export function createCallbackNonce() {
+  return randomBytes(32).toString("base64url");
+}
+
+
+export function parseOAuthCallback(requestUrl, expectedNonce) {
+  const url = new URL(requestUrl ?? "/", "http://127.0.0.1");
+  if (url.pathname !== `/callback/${expectedNonce}`) {
+    throw new Error("OpenRouter callback path did not match the initiating browser session");
+  }
+  const providerError = url.searchParams.get("error");
+  if (providerError) {
+    throw new Error(`OpenRouter authorization failed: ${providerError}`);
+  }
+  const code = url.searchParams.get("code");
+  if (!code) throw new Error("OpenRouter callback did not include a code");
+  return code;
+}
+
+
 function run(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, options);
@@ -74,6 +94,7 @@ async function login({ account, service, force, timeoutSeconds }) {
   }
 
   const pkce = createPkcePair();
+  const callbackNonce = createCallbackNonce();
   let settled = false;
   let resolveLogin;
   let rejectLogin;
@@ -84,15 +105,17 @@ async function login({ account, service, force, timeoutSeconds }) {
 
   const server = http.createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
-    if (url.pathname !== "/callback") {
+    if (url.pathname !== `/callback/${callbackNonce}`) {
       response.writeHead(404).end();
       return;
     }
-    const code = url.searchParams.get("code");
-    if (!code) {
+    let code;
+    try {
+      code = parseOAuthCallback(request.url, callbackNonce);
+    } catch (error) {
       response.writeHead(400, { "content-type": "text/html" });
-      response.end(browserPage(false, "OpenRouter did not return an authorization code."));
-      if (!settled) rejectLogin(new Error("OpenRouter callback did not include a code"));
+      response.end(browserPage(false, "OpenRouter returned an invalid or unrelated authorization callback."));
+      if (!settled) rejectLogin(error);
       settled = true;
       return;
     }
@@ -129,7 +152,7 @@ async function login({ account, service, force, timeoutSeconds }) {
   });
   const address = server.address();
   const port = typeof address === "object" && address ? address.port : 0;
-  const callback = `http://localhost:${port}/callback`;
+  const callback = `http://localhost:${port}/callback/${callbackNonce}`;
   const auth = new URL("https://openrouter.ai/auth");
   auth.searchParams.set("callback_url", callback);
   auth.searchParams.set("code_challenge", pkce.challenge);
