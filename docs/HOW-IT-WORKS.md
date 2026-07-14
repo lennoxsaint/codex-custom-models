@@ -37,7 +37,7 @@ Ollama uses the same local routing shape without a credential.
 
 ## Authentication
 
-`scripts/openrouter-login.mjs` creates a random PKCE verifier, opens OpenRouter's official authorization page, receives the redirect on a temporary localhost port, exchanges the one-time code, and writes the returned credential to Keychain through stdin. The key is never printed or put in command arguments.
+`scripts/openrouter-login.mjs` creates a random PKCE verifier and random callback-path nonce, opens OpenRouter's official authorization page, receives the redirect on a temporary localhost port, rejects callbacks that do not match the initiating browser session, exchanges the one-time code, and writes the returned credential to Keychain through stdin. The key is never printed or put in command arguments.
 
 ## Proof levels
 

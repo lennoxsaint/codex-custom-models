@@ -1,9 +1,10 @@
 {
   "provider": "openrouter",
   "models": [
-    { "slug": "gpt-5.5",       "display_name": "GLM 5.2 [OpenRouter]",          "target": "z-ai/glm-5.2",                  "context_window": 1048576 },
-    { "slug": "gpt-5.4",       "display_name": "Kimi K2.7 Code [OpenRouter]",   "target": "moonshotai/kimi-k2.7-code",      "context_window": 262144 },
-    { "slug": "gpt-5.4-mini",  "display_name": "Qwen3.7 Max [OpenRouter]",      "target": "qwen/qwen3.7-max",               "context_window": 1000000 },
-    { "slug": "gpt-5.3-codex", "display_name": "DeepSeek V4 Pro [OpenRouter]", "target": "deepseek/deepseek-v4-pro",        "context_window": 1048576 }
+    { "slug": "gpt-5.5",              "display_name": "Claude Fable 5 [OpenRouter]",   "target": "anthropic/claude-fable-5",       "context_window": 1000000 },
+    { "slug": "gpt-5.4",              "display_name": "GLM 5.2 [OpenRouter]",           "target": "z-ai/glm-5.2",                   "context_window": 1048576 },
+    { "slug": "gpt-5.4-mini",         "display_name": "Kimi K2.7 Code [OpenRouter]",    "target": "moonshotai/kimi-k2.7-code",      "context_window": 262144 },
+    { "slug": "gpt-5.3-codex",        "display_name": "Qwen3.7 Max [OpenRouter]",       "target": "qwen/qwen3.7-max",               "context_window": 1000000 },
+    { "slug": "gpt-5.3-codex-spark",  "display_name": "DeepSeek V4 Pro [OpenRouter]",  "target": "deepseek/deepseek-v4-pro",       "context_window": 1048576 }
   ]
 }

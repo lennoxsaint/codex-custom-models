@@ -55,6 +55,19 @@ let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
 });' || { echo "FAIL: wrong or empty service is listening on port $PORT" >&2; exit 1; }
 
 MODELS="$(curl -fsS "http://127.0.0.1:${PORT}/v1/models")"
+EXPECTED_MODELS_FILE="$HOME_DIR/custom-models/models.json"
+[[ -f "$EXPECTED_MODELS_FILE" ]] || { echo "FAIL: installed models file missing: $EXPECTED_MODELS_FILE" >&2; exit 1; }
+printf '%s' "$MODELS" | node -e '
+const fs = require("node:fs");
+const expectedRaw = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+const expected = (Array.isArray(expectedRaw) ? expectedRaw : expectedRaw.models).map((model) => [model.slug, model.target]);
+let input = "";
+process.stdin.on("data", (chunk) => { input += chunk; });
+process.stdin.on("end", () => {
+  const actual = JSON.parse(input).data.map((model) => [model.id, model.target_model]);
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) process.exit(1);
+});
+' "$EXPECTED_MODELS_FILE" || { echo "FAIL: proxy model mappings do not match the installed member pack" >&2; exit 1; }
 printf '%s' "$MODELS" | node -e '
 let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{
   const j=JSON.parse(s); if(!Array.isArray(j.data)||j.data.length===0) process.exit(1);

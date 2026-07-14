@@ -19,8 +19,10 @@ if (-not $env:OPENROUTER_API_KEY) {
   Write-Error "OPENROUTER_API_KEY is missing. Set it in a trusted PowerShell session with: `$env:OPENROUTER_API_KEY = Read-Host -MaskInput 'OpenRouter key'. Never paste it into an agent chat."
   exit 1
 }
+$beginMarker = "# BEGIN CODEX CUSTOM MODELS"
+$endMarker = "# END CODEX CUSTOM MODELS"
 $block = @"
-
+$beginMarker
 [model_providers.openrouter]
 name = "OpenRouter"
 base_url = "https://openrouter.ai/api/v1"
@@ -32,7 +34,19 @@ model_provider = "openrouter"
 model = "$Model"
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
+$endMarker
 "@
-Add-Content -Path $cfg -Value $block
-Write-Host "Appended OpenRouter provider + profile to $cfg"
+$existing = if (Test-Path $cfg) { Get-Content -Raw -Path $cfg } else { "" }
+$managedPattern = "(?ms)^# BEGIN CODEX CUSTOM MODELS\r?\n.*?^# END CODEX CUSTOM MODELS\r?\n?"
+if ($existing -match $managedPattern) {
+  $next = [regex]::Replace($existing, $managedPattern, "$block`r`n")
+} elseif ($existing -match "(?m)^\[(model_providers|profiles)\.openrouter\]$") {
+  Write-Error "An unmanaged OpenRouter provider/profile already exists in $cfg. Back up and review it before this installer changes anything."
+  exit 1
+} else {
+  $separator = if ($existing.Length -gt 0 -and -not $existing.EndsWith("`n")) { "`r`n`r`n" } elseif ($existing.Length -gt 0) { "`r`n" } else { "" }
+  $next = "$existing$separator$block`r`n"
+}
+Set-Content -Path $cfg -Value $next -NoNewline
+Write-Host "Installed one managed OpenRouter provider + profile in $cfg"
 Write-Host "Run:  codex --profile openrouter `"Say: OK`""
