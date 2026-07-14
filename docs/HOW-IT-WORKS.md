@@ -33,6 +33,8 @@ The launch agent runs `src/proxy.mjs` on `127.0.0.1`. For each Codex request it:
 - streams the response back,
 - records metadata without prompt or completion contents.
 
+Codex's native app/plugin/browser/goal/ImageGen/multi-agent integrations use a `namespace` tool type that OpenRouter's non-OpenAI endpoints currently reject. The generated isolated profile disables those namespace sources and retains the portable coding surface: file operations, shell commands and patches. This is a compatibility boundary, not a hidden capability claim.
+
 Ollama uses the same local routing shape without a credential.
 
 ## Authentication
@@ -43,7 +45,7 @@ Ollama uses the same local routing shape without a credential.
 
 - `scripts/preflight.sh`: official source and dependency readiness.
 - `scripts/verify.sh --skip-marker`: app signature/config, proxy identity, and catalog structure.
-- `scripts/verify.sh`: all structural checks plus a real marker response and proxy receipt.
+- `scripts/verify.sh`: all structural checks plus a real marker response and proxy receipt; it restores the exact config snapshot after the marker so verification cannot persist a trust mutation.
 - Visual/Dock verification: proves the correct app launched; it does not replace the marker turn.
 
 Because the duplicate has a new ad-hoc signature, macOS may request first-launch access to the official app's encrypted-storage key or protected folders. Those prompts are OS security boundaries, not installer failures, and the agent must not bypass them silently.

@@ -52,6 +52,10 @@ For local models:
 
 The repository ships **no OpenAI binary, icon, credential, or prebuilt application**.
 
+### Compatibility boundary
+
+OpenRouter models currently reject Codex's native `namespace` tool payload. The isolated custom-model profile therefore disables app connectors, plugins, browser/computer use, goals, ImageGen, multi-agent, workspace-dependency and hook namespaces. Core coding tools—file reads/writes, shell commands and patches—remain available. Use the official ChatGPT profile when you need those native OpenAI integrations.
+
 ## What It Does Not Do
 
 - It does not route ChatGPT **Chat** or **Work** through OpenRouter. It configures the **Codex** surface in the unified desktop app.

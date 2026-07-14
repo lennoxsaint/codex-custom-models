@@ -8,6 +8,7 @@ You are wiring an AI agent that can run shell commands on your machine to a **re
 - `sandbox_mode = "workspace-write"` — writes confined to the workspace; no full-disk access.
 - No `[projects.*] trust_level = "trusted"` block is shipped.
 - The proxy binds to `127.0.0.1` only. Never bind `0.0.0.0`.
+- The custom-model home disables native namespace integrations that OpenRouter's non-OpenAI endpoints reject. Core coding tools remain available; do not re-enable namespace features without re-running the paid marker gate for every selected model.
 
 ## The one anti-pattern: never combine these
 **auto-approve (`approval_policy="never"`) + full access (`sandbox_mode="danger-full-access"`) + a remote model = arbitrary code execution.** Do not do it. If a blog/comment tells you to "just set approval_policy never to stop the prompts," don't. CI in this repo fails the build if any of these values appear.

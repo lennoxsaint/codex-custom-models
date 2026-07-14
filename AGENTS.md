@@ -15,6 +15,8 @@ This repository builds a local, separately identified copy of the user's install
 
    Use repeatable `--model 'provider/model|Display Name'` flags only for a user-selected override. The installer opens OpenRouter's official PKCE authorization page when Keychain has no credential.
 5. Verify the app bundle, isolated `CODEX_HOME`, proxy health, model mappings, marker response, and a new metadata receipt in the proxy log.
+   - The isolated profile intentionally disables namespace-producing OpenAI integrations that non-OpenAI endpoints reject. Do not re-enable apps, plugins, browser/computer use, goals, ImageGen, multi-agent, workspace-dependency or hook features just to make the picker look more complete.
+   - The marker verifier restores the exact pre-marker config snapshot so Codex cannot persist a project trust entry during verification.
 6. On macOS, open the installed app and confirm a process is running from its own bundle. Add it to the Dock only if the user asked or the setup request clearly includes that outcome.
    - First launch may ask whether the ad-hoc copy can read the official `Codex Storage Key`. Recommend **Deny** to keep the custom profile isolated; the OpenRouter credential lives in a separate Keychain item.
    - macOS may ask for folder access when the user chooses a workspace. Let the user approve only folders they intend the custom app to edit.

@@ -80,12 +80,20 @@ fi
 
 if [[ "$SKIP_MARKER" == "0" ]]; then
   [[ -x "$CODEX_BIN" ]] || { echo "FAIL: Codex CLI is required for the marker turn" >&2; exit 1; }
+  VERIFY_CONFIG_BACKUP="$HOME_DIR/config.verify-backup.$$"
+  cp -p "$HOME_DIR/config.toml" "$VERIFY_CONFIG_BACKUP"
   BEFORE_LINES="$(wc -l < "$HOME_DIR/proxy.log" 2>/dev/null || echo 0)"
-  OUT="$(CODEX_HOME="$HOME_DIR" "$CODEX_BIN" exec --skip-git-repo-check --model "$SLUG" 'Reply with exactly: OK-CUSTOM-MODELS' 2>&1)" || {
+  set +e
+  OUT="$(CODEX_HOME="$HOME_DIR" "$CODEX_BIN" exec --skip-git-repo-check --model "$SLUG" 'Reply with exactly: OK-CUSTOM-MODELS' 2>&1)"
+  MARKER_EXIT=$?
+  set -e
+  cp -p "$VERIFY_CONFIG_BACKUP" "$HOME_DIR/config.toml"
+  rm -f "$VERIFY_CONFIG_BACKUP"
+  if (( MARKER_EXIT != 0 )); then
     printf '%s\n' "$OUT" | tail -20 >&2
     echo "FAIL: marker turn failed" >&2
     exit 1
-  }
+  fi
   printf '%s\n' "$OUT" | grep -q "OK-CUSTOM-MODELS" || {
     printf '%s\n' "$OUT" | tail -20 >&2
     echo "FAIL: marker text was not returned" >&2
