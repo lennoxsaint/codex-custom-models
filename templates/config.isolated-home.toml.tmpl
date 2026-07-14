@@ -10,6 +10,24 @@ model_catalog_json = "__MODELS_DIR__/catalog.json"
 approval_policy = "on-request"      # Codex PAUSES before running generated commands
 sandbox_mode   = "workspace-write"  # writes confined to the workspace; no full-disk access
 
+# OpenRouter's non-OpenAI endpoints reject Codex's native `namespace` tool type.
+# Keep this isolated custom-model home on the portable function-tool surface.
+# Core file, shell and patch tools remain available; app/plugin/browser namespace
+# integrations stay in the official ChatGPT profile.
+[features]
+apps = false
+browser_use = false
+computer_use = false
+goals = false
+image_generation = false
+in_app_browser = false
+multi_agent = false
+plugins = false
+tool_suggest = false
+workspace_dependencies = false
+skill_mcp_dependency_install = false
+hooks = false
+
 [model_providers.custom_alias_proxy]
 name = "Custom Models (local proxy)"
 base_url = "http://127.0.0.1:__PROXY_PORT__/v1"
